@@ -5,6 +5,8 @@ import { invoices, customers, revenue, users } from '../lib/placeholder-data';
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
 async function seedUsers() {
+  console.log('Seeding users...');
+  
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
   await sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -26,10 +28,13 @@ async function seedUsers() {
     }),
   );
 
+  console.log(`✅ Users seeded: ${users.length} users processed`);
   return insertedUsers;
 }
 
 async function seedInvoices() {
+  console.log('Seeding invoices...');
+  
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await sql`
@@ -52,10 +57,13 @@ async function seedInvoices() {
     ),
   );
 
+  console.log(`✅ Invoices seeded: ${invoices.length} invoices processed`);
   return insertedInvoices;
 }
 
 async function seedCustomers() {
+  console.log('Seeding customers...');
+  
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await sql`
@@ -77,10 +85,13 @@ async function seedCustomers() {
     ),
   );
 
+  console.log(`✅ Customers seeded: ${customers.length} customers processed`);
   return insertedCustomers;
 }
 
 async function seedRevenue() {
+  console.log('Seeding revenue...');
+  
   await sql`
     CREATE TABLE IF NOT EXISTS revenue (
       month VARCHAR(4) NOT NULL UNIQUE,
@@ -98,20 +109,46 @@ async function seedRevenue() {
     ),
   );
 
+  console.log(`✅ Revenue seeded: ${revenue.length} revenue records processed`);
   return insertedRevenue;
 }
 
 export async function GET() {
+  console.log('🌱 Starting database seeding...');
+  
   try {
-    const result = await sql.begin((sql) => [
-      seedUsers(),
-      seedCustomers(),
-      seedInvoices(),
-      seedRevenue(),
-    ]);
+    const result = await sql.begin(async (sql) => {
+      const usersResult = await seedUsers();
+      const customersResult = await seedCustomers();
+      const invoicesResult = await seedInvoices();
+      const revenueResult = await seedRevenue();
+      
+      return {
+        users: usersResult,
+        customers: customersResult,
+        invoices: invoicesResult,
+        revenue: revenueResult,
+      };
+    });
 
-    return Response.json({ message: 'Database seeded successfully' });
+    console.log('🎉 Database seeded successfully!');
+    
+    return Response.json({ 
+      message: 'Database seeded successfully',
+      summary: {
+        users: users.length,
+        customers: customers.length,
+        invoices: invoices.length,
+        revenue: revenue.length,
+      }
+    });
   } catch (error) {
-    return Response.json({ error }, { status: 500 });
+    console.error('❌ Error seeding database:', error);
+    return Response.json({ 
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      details: error
+    }, { status: 500 });
+  } finally {
+    await sql.end();
   }
 }
